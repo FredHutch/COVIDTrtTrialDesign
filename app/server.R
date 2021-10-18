@@ -1,23 +1,14 @@
 library(shiny)
-library(readr)
+library(tidyverse)
+library(viridis)
 library(exactci)
 library(mvtnorm)
 library(survival)
 library(survminer)
-library(dplyr)
-library(stringr)
-library(tidyr)
-library(purrr)
-library(tibble)
-library(forcats)
-library(broom)
-library(viridis)
-library(ggplot2)
 library(cowplot)
-library(colf)
+library(cobs)
 
 source("trials_funs.R")
-load("primary_power_input.rda")
 
 lab_eps = "Proportion reduction median symptom duration (surrogate)"
 lab_hr = "Placebo vs. treatment symptom duration hazard ratio (HR, surrogate)"
