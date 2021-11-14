@@ -12,21 +12,24 @@ shinyUI(fluidPage(
                sidebarPanel(
                  numericInput("total_drugs", "Total simulated drugs.", 
                               min = 1, max = 1000, value = 50, step = 25),
-                 sliderInput("eps_inv", "Fold-reduction in median symptoms (range, 1/surrogate).", 
-                             min = 1, max = 1/0.1, step = 0.25, value = c(1, 5)),
-                 numericInput(
-                   "median_placebo",
-                   "Placebo symptom resolution median (days, surrogate null endpoint) ~ Exponential.",
-                   min = 5, max = 30, value = 12, step = 1),
-                 uiOutput("hvar_slider"),
-                 numericInput("hosp_pl", "Placebo hospitalization probability (null primary).", 
-                              min = 0, max = 0.25, value = 0.1, step = .1),
-                 numericInput("rho_eff", "Correlation between effective surrogate and primary.", 
-                              min = 0, max = 1, value = 0.6, step = .05),
-                 numericInput("pct_fp", "% of drugs that are not effective.", 
-                              min = 0, max = 75, value = 0, step = 5)
+                 numericInput("pct_fp", "% of drugs that are not effective (identical to placebo).", 
+                              min = 0, max = 75, value = 0, step = 5),
+                 fluidRow(column(10, h4(HTML("Placebo settings"))), align = "center",
+                          fluidRow(column(10, numericInput("median_placebo","Median placebo symptom duration (days).",
+                                                           min = 5, max = 30, value = 12, step = 1)),
+                                   column(10, numericInput("hosp_pl", "Placebo hospitalization probability.", 
+                                                           min = 0, max = 0.25, value = 0.1, step = .1))
+                          )),
+                 fluidRow(column(10, h4(HTML("Effective drug settings"))), align = "center",
+                          fluidRow(column(10, sliderInput("eps_inv", 
+                                                          "Fold-reduction in median symptom duration (range, placebo/drug).", 
+                                                          min = 1, max = 1/0.1, step = 0.25, value = c(1, 5))),
+                                   column(10, uiOutput("hvar_slider")),
+                                   column(10, numericInput("rho_eff", "Treatment effect correlation between duration and hospitalization", 
+                                                           min = 0, max = 1, value = 0.6, step = .05))
+               ))
                ),
-                 mainPanel(plotOutput("distPlot"))
+                 mainPanel(plotOutput("distPlot", height = "750", width = "500"))
                )
   ),
   # "Mininum effective HR (ie, HR0)"
@@ -35,20 +38,22 @@ shinyUI(fluidPage(
              sidebarPanel(
                fluidRow(column(10, h3(HTML("Surrogate design"))), align = "center",
                         fluidRow(
-                          column(10, sliderInput("n_surrogate", "N per group", min = 5, max = 100, value = 30, step = 5)),
-                          column(5, numericInput("alpha_surrogate", "alpha", min = 0.01, max = 1, value = 0.1, step = 0.01)),
-                          column(5, numericInput("followup_time", "Follow-up (days)", min = 10, max = 60, value = 30, step = 5)),
-                          column(10, sliderInput("hr_cutoff", p(HTML(paste0("Mininum effective HR (HR",tags$sub("0"), ")"))), 
+                          column(5, numericInput("n_surrogate", "N per group", min = 5, max = 100, value = 30, step = 5)),
+                          column(5, selectInput("alpha_surrogate", "1-sided alpha", 
+                                                 choices = c(0.001, 0.01, 0.025, 0.05, 0.1, 0.2), 
+                                                 selected = 0.05)),
+                          column(10, numericInput("followup_time", "Follow-up (days)", min = 10, max = 60, value = 30, step = 5)),
+                          column(10, numericInput("hr_cutoff", p(HTML(paste0("Required effective HR (HR",tags$sub("0"), ")"))), 
                                                  min = 1, max = 3, step = 0.1, value = 1.2))
                         )),
                fluidRow(column(10, h3(HTML("Primary design"))), align = "center",
                         fluidRow(
-                          column(10, sliderInput("n_primary", "N per group", min = 50, max = 1000, value = 300, step = 50)),
-                          column(10, selectInput("alpha_primary", "alpha", 
-                                                choices = c(0.001, 0.01, 0.025, 0.05, 0.1), 
+                          column(5, numericInput("n_primary", "N per group", min = 50, max = 1000, value = 300, step = 50)),
+                          column(5, selectInput("alpha_primary", "1-sided alpha", 
+                                                choices = c(0.001, 0.01, 0.025, 0.05, 0.1, 0.2), 
                                                 selected = 0.05)),
-                          column(10, sliderInput("rr_cutoff", p(HTML(paste0("Maximum  effective risk ratio (RR",tags$sub("0"), ")"))), 
-                                                 min = 0.5, max = 1, value = 0.9, step = 0.1))
+                          column(10, numericInput("rr_cutoff", p(HTML(paste0("Required effective risk ratio (RR",tags$sub("0"), ")"))), 
+                                                 min = 1e-6, max = 1, value = 0.9, step = 0.1))
                         )),
                fluidRow(column(10, h4(HTML("Primary trial sim controls"))), align = "center",
                         fluidRow(
@@ -92,6 +97,10 @@ shinyUI(fluidPage(
                )
              )
            )
-           )
+           ),
+  tabPanel("About", 
+           h4("Contact: Bryan Mayer (bmayer@fredhutch.org)"),
+           div("Code:", a("https://github.com/FredHutch/COVIDTrtTrialDesign"))
+           ) 
   )
 ))

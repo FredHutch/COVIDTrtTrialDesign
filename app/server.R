@@ -11,9 +11,13 @@ library(cowplot)
 
 source("trials_funs.R")
 
-lab_eps = "Proportion reduction median symptom duration (surrogate)"
-lab_hr = "Placebo vs. treatment symptom duration hazard ratio (HR, surrogate)"
+
 lab_primary = "Trt two-week hospitalization probability  (primary)"
+lab_surrogate = "Median symptom resolution day (surrogate)"
+
+lab_eps = "Proportion reduction median symptom duration (surrogate)"
+lab_hr = "Trt vs. placebo symptom resolution rate hazard ratio (HR)"
+lab_rr = "Trt vs. placebo hospitalization risk ratio (RR) "
 default_hvar = c(0.03, 0.08)
 
 shinyServer(function(input, output) {
@@ -23,7 +27,7 @@ shinyServer(function(input, output) {
   hosp_pl = reactive({input$hosp_pl})
   prop_fp = reactive({input$pct_fp/100})
   output$hvar_slider = renderUI({
-    sliderInput("h_var", "Drug hospitalization probability range (primary endpoint)", 
+    sliderInput("h_var", "Trt. hospitalization probability (range)", 
                 min = 0, max = hosp_pl(), value = default_hvar, step = 0.01)
   }) 
   
@@ -37,7 +41,7 @@ shinyServer(function(input, output) {
         eps = eps,
         hr_cutoff = input$hr_cutoff,
         followup_time = input$followup_time,
-        alpha = input$alpha_surrogate
+        alpha = parse_number(input$alpha_surrogate)
       )
     }
     
@@ -56,16 +60,18 @@ shinyServer(function(input, output) {
     }
     })
   
+  # to speed up the simulations for the axis, this uses a smoothed spline
+  # on a subset of the axes input data (RR)
   make_primary_power_axis = reactive({
     
-    function(input){
+    function(axis_input){
       index = seq(1, 1000, by = 20)
-      yin = map_dbl(input[index], calc_primary_power())
-      monotonic_smoother = cobs(input[index], yin,
+      yin = map_dbl(axis_input[index]*input$hosp_pl, calc_primary_power())
+      monotonic_smoother = cobs(axis_input[index]*input$hosp_pl, yin,
                print.warn = F, print.mesg = F,
                constraint= "decrease", degree=1, nknots = 20)
     
-    100*predict(monotonic_smoother, interval="none", z=input)[,2]
+    100*predict(monotonic_smoother, interval="none", z=axis_input*input$hosp_pl)[,2]
     
     }
   })
@@ -80,17 +86,24 @@ shinyServer(function(input, output) {
 
     stopifnot(total_eff_drugs > 1)
     
-    sig = matrix(input$rho_eff, nrow = 2, ncol = 2)
+    # See https://stats.stackexchange.com/questions/66610/generate-pairs-of-random-numbers-uniformly-distributed-and-correlated
+    # for uniform, spearman rougly equals pearson (so the input is technically spearman rho_eff)
+    # for bivariate normal,  spearman ~=~ 6/pi * sin(pearson/2)
+    mvn_rho =  2 * sin(input$rho_eff * pi/6) 
+    
+    sig = matrix(mvn_rho, nrow = 2, ncol = 2)
     diag(sig) = 1
     norm_sample = rmvnorm(total_eff_drugs, mean = c(0, 0), sigma = sig)
 
     eff_tib = tibble(
       surrogate_eff = pnorm(norm_sample[,1]) * (1/input$eps_inv[1] - 1/input$eps_inv[2]) + 1/input$eps_inv[2],
-      primary_eff = pnorm(norm_sample[,2]) * (h_var_range[2] - h_var_range[1]) + h_var_range[1]
+      primary_eff = pnorm(norm_sample[,2]) * (h_var_range[2] - h_var_range[1]) + h_var_range[1],
+      primary_rr = primary_eff/input$hosp_pl
     )
     fp_tib = tibble(
       surrogate_eff = rep(1, total_fp_drugs),
-      primary_eff = rep(hosp_pl(), total_fp_drugs)
+      primary_eff = rep(hosp_pl(), total_fp_drugs),
+      primary_rr = 1
     )
 
     bind_rows(eff_tib, fp_tib) %>%
@@ -138,37 +151,51 @@ shinyServer(function(input, output) {
   })
   
   output$distPlot = renderPlot({
-      ggplot(drug_population(), aes(x = surrogate_eff, y = primary_eff)) +
+      pl_raw = ggplot(drug_population(), aes(x = input$median_placebo * surrogate_eff, y = primary_eff)) +
         geom_point(alpha = 0.5) +
-        labs(x = lab_eps, y = lab_primary) +
+        scale_x_continuous(breaks = 0:25) +
+        labs(x = lab_surrogate, y = lab_primary) +
         theme(text = element_text(size = text_size)) +
         ggtitle(paste(input$total_drugs, "simulated drugs")) +
-       geom_vline(xintercept = 1, colour = "black", linetype = "dotted") +
+       geom_vline(xintercept = input$median_placebo, colour = "black", linetype = "dotted") +
        geom_hline(yintercept =  hosp_pl(), colour = "black", linetype = "dotted")
+      
+      pl_stats = ggplot(drug_population(), aes(x = 1/surrogate_eff, y = primary_rr)) +
+        geom_point(alpha = 0.5) +
+        scale_x_log10(breaks = c(1:5, input$hr_cutoff)) +
+        scale_y_log10() +
+        geom_vline(xintercept = 1, colour = "black", linetype = "dotted") +
+        geom_hline(yintercept = 1, colour = "black", linetype = "dotted") +       
+        labs(x = lab_hr, y = lab_rr) +
+        theme(text = element_text(size = text_size)) 
+        
+      plot_grid(pl_raw, pl_stats, nrow = 2, rel_heights = c(11, 10))
+      
     })
   
   output$marginalPower = renderPlot({
-    ggplot(drug_population(), aes(x = 1/surrogate_eff, y = primary_eff)) +
+    ggplot(drug_population(), aes(x = 1/surrogate_eff, y = primary_rr)) +
       geom_point(alpha = 0.5) +
       scale_x_log10(breaks = c(1:5, input$hr_cutoff),
                     sec.axis = sec_axis(~100*calc_surrogate_power()(eps = 1/.), 
                                                breaks = c(5, 10, 50, 80, 90, 99),
                                                  name = "Surrogate power (%)") 
                     ) +
-      scale_y_continuous(sec.axis = sec_axis(~make_primary_power_axis()(.), 
+      scale_y_log10(sec.axis = sec_axis(~make_primary_power_axis()(.), 
                                              breaks = c(5, 10, 50, 80, 90, 99),
-                                             name = "Primary power (%)")) +
+                                             name = "Approx. Primary power (%)")) +
       geom_vline(xintercept = input$hr_cutoff, colour = "red", linetype = "dashed") +
       geom_vline(xintercept = 1, colour = "black", linetype = "dotted") +
-      geom_hline(yintercept = hosp_pl()*input$rr_cutoff, colour = "red", linetype = "dashed") +
-      geom_hline(yintercept =  hosp_pl(), colour = "black", linetype = "dotted") +
-      labs(x = lab_hr, y = lab_primary) +
+      geom_hline(yintercept = input$rr_cutoff, colour = "red", linetype = "dashed") +
+      geom_hline(yintercept = 1, colour = "black", linetype = "dotted") +
+      labs(x = lab_hr, y = lab_rr) +
       theme(text = element_text(size = text_size)) +
       ggtitle(paste(input$total_drugs, "simulated drugs"))
   })
   
   output$overallPower = renderPlot({
-    pwr_breaks = c(5, 10, 50, 80, 90, 99, parse_number(input$alpha_primary) * 100, input$alpha_surrogate * 100)
+    pwr_breaks = c(5, 10, 50, 80, 90, 99, parse_number(input$alpha_primary) * 100, 
+                   parse_number(input$alpha_surrogate) * 100)
     trial_types = c("surrogate", "primary", "sequential")
     
     power_res() %>%
