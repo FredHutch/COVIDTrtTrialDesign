@@ -90,6 +90,8 @@ trial_duration_calc = function(n_surrogate, surrogate_accrual, surrogate_fup,
     n_primary = n_primary,
     surrogate_mo = trial_duration_mo(n_surrogate, monthly_accrual = surrogate_accrual, followup_days = surrogate_fup),
     primary_mo = trial_duration_mo(n_primary, monthly_accrual = primary_accrual, followup_days = primary_fup),
+    gap_surrogate = gap_time,
+    post_primary = gap_time,
     total_mo = surrogate_mo + primary_mo + 2 * gap_time
   )
 }
@@ -122,12 +124,22 @@ calc_time_to_efficacy = function(trial_complete_time, success, drug_threshold = 
   trial_complete_time[which(cumulative_success == drug_threshold)[1]]
 }
 
-trials_efficacy_time = function(n_drugs, drug_pwr_dat, total_trial_mo, mo_btw_drug = 1, meta_replicates = 1){
+# didnt' try the correct version
+# trial_end_stage = 1 means successful seq trial, -1 means failed seq trial, 0 means failed surrogate
+# a failed surrogate is a shorter trial
+# trial length includes time from last drug trial start, the first drug tested does not have this lag
+trials_efficacy_time = function(n_drugs, drug_pwr_dat, duration_dat, 
+                                mo_btw_drug = 1, meta_replicates = 1){
   map_df(1:meta_replicates, function(i){
     dplyr::slice_sample(drug_pwr_dat, n = n_drugs) %>% 
       transmute(
-        success = rbinom(n_drugs, size = 1, prob = surrogate*primary),
-        trial_complete_time = total_trial_mo + mo_btw_drug * (0:(n_drugs - 1))
+        trial_end_stage = if_else(rbinom(n_drugs, size = 1, prob = surrogate) == 1,
+                                  if_else(rbinom(n_drugs, size = 1, prob = primary) == 1, 1, -1),
+                                  0),
+        trial_complete_time =  mo_btw_drug * (0:(n_drugs - 1)) + if_else(trial_end_stage == 0, 
+                                                                         duration_dat$surrogate_mo + duration_dat$gap_surrogate, 
+                                                                         duration_dat$total_mo),
+        success = as.numeric(trial_end_stage == 1)
       ) %>%
       summarize(
         meta_sim = i,
@@ -135,9 +147,6 @@ trials_efficacy_time = function(n_drugs, drug_pwr_dat, total_trial_mo, mo_btw_dr
         time_2drug = calc_time_to_efficacy(trial_complete_time, success, drug_threshold = 2),
         time_3drug = calc_time_to_efficacy(trial_complete_time, success, drug_threshold = 3)
       )
-    })
+  })
 }
-
-
-
 

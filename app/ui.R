@@ -74,30 +74,35 @@ shinyUI(fluidPage(
              sidebarPanel(
                fluidRow(column(10, h4(HTML("Trial time controls"))), align = "center",
                         fluidRow(
-                          column(10, numericInput("surrogate_accrual", "Surrogate patient accrual rate/mo ", min = 5, max = 1000, value = 40,
+                          column(10, numericInput("surrogate_accrual", "Surrogate patient accrual rate/mo ", 
+                                                  min = 5, max = 1000, value = 40,
                                                   step = 5)),
-                          column(10, numericInput("primary_accrual", "Primary patient accrual rate/mo ", min = 50, max = 1000, value = 400,
+                          column(10, numericInput("primary_accrual", "Primary patient accrual rate/mo ", 
+                                                  min = 50, max = 1000, value = 400,
                                                   step = 50)),
-                          column(10, numericInput("gap_time", "Trial closing periods (mos)", min = 0, max = 6, value = 0.5,
+                          column(10, numericInput("gap_time", "Trial closing periods (mos)", 
+                                                  min = 0, max = 6, value = 0.5,
                                                   step = 0.5))
-                          )),
+                          ))
+             ), 
+             mainPanel( plotOutput("generalSeqPlts", height = "600"))
+           )
+           ),
+  tabPanel("Time to efficacious drugs", 
+           sidebarLayout(
+             sidebarPanel(
                fluidRow(column(10, h4(HTML("Sequential trial sims"))), align = "center",
                         fluidRow(
-                          column(5, numericInput("drug_times", "Months btw. drugs", min = 0, max = 6, value = 1,
+                          column(5, numericInput("drug_times", "Months btw. candidate drug trial starts", min = 0, max = 6, value = 1,
                                                  step = 0.5)),
-                          column(5, numericInput("trial_cens_time", "Functional censor mo.", min = 12, max = 100, value = 24,
+                          column(5, numericInput("trial_cens_time", "Unsuccessful trial truncation mo.", min = 12, max = 100, value = 24,
                                                  step = 1)),
                           column(10, numericInput("trial_reps", "Trial simulations", min = 100, max = 5000, value = 250, step = 100))
                         ))
              ), 
-             mainPanel(
-               tabsetPanel(
-                 tabPanel("Sequential trial durations", plotOutput("generalSeqPlts")),
-                 tabPanel("Time to efficacious drugs", plotOutput("survplot", height = "600", width = "600"))
-               )
+             mainPanel(plotOutput("survplot", height = "600", width = "600"))
              )
-           )
-           ),
+  ),
   tabPanel("About", 
            h4("Contact: Bryan Mayer (bmayer@fredhutch.org)"),
            div("Code:", a("https://github.com/FredHutch/COVIDTrtTrialDesign"))

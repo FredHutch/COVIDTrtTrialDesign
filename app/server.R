@@ -144,7 +144,8 @@ shinyServer(function(input, output) {
   seq_trial_sims = reactive({
     map_df(c(5, 10, 25), function(n_drugs){
       trials_efficacy_time(n_drugs = n_drugs, drug_pwr_dat = power_res(),
-                           total_trial_mo = trial_duration()$total_mo, mo_btw_drug = input$drug_times,
+                           duration_dat =  trial_duration(), 
+                           mo_btw_drug = input$drug_times,
                            meta_replicates = input$trial_reps) %>%
         mutate(n_drugs = n_drugs)
     })
@@ -179,11 +180,11 @@ shinyServer(function(input, output) {
       scale_x_log10(breaks = c(1:5, input$hr_cutoff),
                     sec.axis = sec_axis(~100*calc_surrogate_power()(eps = 1/.), 
                                                breaks = c(5, 10, 50, 80, 90, 99),
-                                                 name = "Surrogate power (%)") 
+                                                 name = "Surrogate trial power (%)") 
                     ) +
       scale_y_log10(sec.axis = sec_axis(~make_primary_power_axis()(.), 
                                              breaks = c(5, 10, 50, 80, 90, 99),
-                                             name = "Approx. Primary power (%)")) +
+                                             name = "Approx. primary trial power (%)")) +
       geom_vline(xintercept = input$hr_cutoff, colour = "red", linetype = "dashed") +
       geom_vline(xintercept = 1, colour = "black", linetype = "dotted") +
       geom_hline(yintercept = input$rr_cutoff, colour = "red", linetype = "dashed") +
@@ -220,18 +221,14 @@ shinyServer(function(input, output) {
       geom_line(aes(colour = factor(n_surrogate))) +
       geom_point(data = trial_duration(), fill = "black", size = 2.5) +
       scale_y_continuous(breaks = 0:12) +
-      scale_x_continuous(breaks = (0:5) * 200) +
+      scale_x_continuous(breaks = c(5, 1:10 * 100), limits = c(5, NA)) +
       coord_cartesian(ylim = c(0, 12)) +
       scale_shape_manual("", breaks = c(" ", "Selected settings"), values = c(NA,15)) +
-      labs(x = "Primary N", y = "Successful trial duration (months)",
-           colour = "Surrogate N", fill = "") +
-      theme(text = element_text(size = text_size - 2)) 
+      labs(x = "Primary N per group", y = "Successful seq. trial duration (months)",
+           colour = "Surrogate N per group", fill = "") +
+      theme(text = element_text(size = text_size - 2), panel.grid.minor.y = element_blank()) 
     
     duration_barpl = trial_duration() %>%
-      mutate(
-        gap_surrogate = input$gap_time,
-        post_primary = input$gap_time
-      ) %>%
       dplyr::select(surrogate_mo, primary_mo, gap_surrogate, post_primary) %>%
       gather() %>%
       mutate(
@@ -249,7 +246,7 @@ shinyServer(function(input, output) {
       geom_label(aes(y = cumulative_value, colour = key), x = 1.5, vjust = 1, show.legend = F, fill = "white") +
       scale_color_viridis(guide = "none", discrete = T) +
       scale_fill_viridis(guide = "none", discrete = T) +
-      scale_y_continuous(expand = c(0, 0), limits = c(0, trial_duration()$total_mo + 3), breaks = (0:12) * 2) +
+      scale_y_continuous(expand = c(0, 0), limits = c(0, trial_duration()$total_mo + 3), breaks = (0:12)) +
       scale_x_discrete(expand = c(0, 0.5)) +
       coord_flip() +
       labs(x = "Selected settings", y = "Total duration (months)") +
@@ -280,7 +277,7 @@ shinyServer(function(input, output) {
                       palette = "jco", pval = F) 
       pl$plot +
         geom_hline(yintercept = c(0.8, 0.9), linetype = "dashed") +
-        labs(x = "Months") +
+        labs(x = "Months", colour = "Candidate trials", shape = "Candidate trials") +
         theme(axis.text.x = element_text(size = 7),
               axis.text.y = element_text(size = 9))
     }) 
