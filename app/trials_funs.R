@@ -125,7 +125,7 @@ make_trial_duration_grid = function(surrogate_accrual, surrogate_fup, primary_ac
   
   crossing(
     n_surrogate = c(10, 30, 50, 100),
-    n_primary = c(5, 50, 100, 300, 600, 1000)
+    n_primary = c(5, 50, 600, 1000)
   ) %>%
     rowwise() %>%
     transmute(
@@ -149,7 +149,6 @@ calc_time_to_efficacy = function(trial_complete_time, success, drug_threshold = 
   trial_complete_time[which(cumulative_success == drug_threshold)[1]]
 }
 
-# didnt' try the correct version
 # trial_end_stage = 1 means successful seq trial, -1 means failed seq trial, 0 means failed surrogate
 # a failed surrogate is a shorter trial
 # trial length includes time from last drug trial start, the first drug tested does not have this lag

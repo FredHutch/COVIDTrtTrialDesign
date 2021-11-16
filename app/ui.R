@@ -5,7 +5,6 @@ shinyUI(fluidPage(
   # Application title
   titlePanel("Treatment trials simulator"),
   
-  
   tabsetPanel(
   tabPanel("Drug efficacy distribution", 
              sidebarLayout(
@@ -22,7 +21,7 @@ shinyUI(fluidPage(
                           )),
                  fluidRow(column(10, h4(HTML("Effective drug settings"))), align = "center",
                           fluidRow(column(10, sliderInput("eps_inv", 
-                                                          "Fold-reduction in median symptom duration (range, placebo/drug).", 
+                                                          "Fold-reduction in median symptom duration (range, trt/drug).", 
                                                           min = 1, max = 1/0.1, step = 0.25, value = c(1, 5))),
                                    column(10, uiOutput("hvar_slider")),
                                    column(10, numericInput("rho_eff", "Treatment effect correlation between duration and hospitalization", 

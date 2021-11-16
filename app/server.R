@@ -71,7 +71,7 @@ shinyServer(function(input, output) {
       )
     }
   })  
-  # to speed up the simulations for the axis, this uses a smoothed spline
+  # to speed up the calculation for the axis, this uses a smoothed spline
   # on a subset of the axes input data (RR)
   make_primary_power_axis = reactive({
     
