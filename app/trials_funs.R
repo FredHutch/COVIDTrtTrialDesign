@@ -59,6 +59,31 @@ surrogate_trials_power_sim = function(replicates,
 # ------------ Primary trial functions -----------
 
 
+make_sig_indices = function(n = 1000, rr_cutoff = 1, alpha = 0.05){
+  crossing(k0 = 0:n, k1 = 0:n) %>%
+    dplyr::filter(k0 > k1) %>%
+    mutate(ind = pbinom(k0 - 1, k0+k1, 1 - rr_cutoff/(rr_cutoff + 1), lower.tail = FALSE) < alpha) %>%
+    dplyr::filter(ind)
+}
+
+primary_trials_power = function(n,
+                                hosp_pl = 0.1,
+                                hosp_tx = 0.05,
+                                rr_cutoff = 1,
+                                alpha = 0.05,
+                                integral_indices = NULL) {
+  
+  if(is.null(integral_indices)) integral_indices = make_sig_indices(n, rr_cutoff, alpha)
+  integral_indices %>%
+    dplyr::filter(k0 <= n & k1 <= n) %>%
+    mutate(
+      comp = dpois(k0, lambda = n * hosp_pl) * dpois(k1, lambda = n * hosp_tx)
+    ) %>%
+    summarize(x = sum(comp)) %>%
+    pull(x)
+}
+
+
 primary_trials_power_sim = function(replicates,
                                     n,
                                     hosp_pl = 0.1,

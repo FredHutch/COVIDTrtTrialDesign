@@ -54,11 +54,6 @@ shinyUI(fluidPage(
                                                 selected = 0.05)),
                           column(10, numericInput("rr_cutoff", p(HTML(paste0("Required effective risk ratio (RR",tags$sub("0"), ")"))), 
                                                  min = 1e-6, max = 1, value = 0.9, step = 0.1))
-                        )),
-               fluidRow(column(10, h4(HTML("Primary trial sim controls"))), align = "center",
-                        fluidRow(
-                          column(10, numericInput("primary_reps", "Total sims", min = 100, max = 5000, value = 500, step = 100)),
-                          column(10, actionButton("run_sims", "Re-run sims"))
                         ))
                ),
              mainPanel(

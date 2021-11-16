@@ -47,29 +47,51 @@ shinyServer(function(input, output) {
     
   })
   
+  # this speeds things up by carefully prepping some backend power integral settings
+  full_integral_indices = reactive({
+    make_sig_indices(
+      rr_cutoff = input$rr_cutoff,
+      alpha = parse_number(input$alpha_primary)
+    )
+  })
+  primary_integral_indices = reactive({
+    dplyr::filter(full_integral_indices(), k0 <= input$n_primary &
+                    k1 <= input$n_primary)
+  })
+  
   calc_primary_power = reactive({
-    function(hosp_tx){
-      primary_trials_power_sim(
-        replicates = input$primary_reps,
+    function(hosp_tx) {
+      primary_trials_power(
         n = input$n_primary,
         hosp_pl = input$hosp_pl,
         hosp_tx = hosp_tx,
         rr_cutoff = input$rr_cutoff,
-        alpha = parse_number(input$alpha_primary)
+        alpha = parse_number(input$alpha_primary),
+        integral_indices = primary_integral_indices()
       )
     }
-    })
-  
+  })  
   # to speed up the simulations for the axis, this uses a smoothed spline
   # on a subset of the axes input data (RR)
   make_primary_power_axis = reactive({
     
     function(axis_input){
-      index = seq(1, 1000, by = 20)
-      yin = map_dbl(axis_input[index]*input$hosp_pl, calc_primary_power())
-      monotonic_smoother = cobs(axis_input[index]*input$hosp_pl, yin,
-               print.warn = F, print.mesg = F,
-               constraint= "decrease", degree=1, nknots = 20)
+      
+      # goes across hosp_tx, we want to keep the worst effect because it's unlike to match a drug
+      grid_in = seq(1, min(axis_input), by = -0.025) * input$hosp_pl
+      grid_power = map_dbl(grid_in, calc_primary_power())
+      xin = -sort(-c(power_res()$primary_eff, grid_in))
+      yin = sort(c(power_res()$primary, grid_power)) 
+
+      monotonic_smoother = cobs(
+        x = xin,
+        y = yin, 
+        print.warn = F,
+        print.mesg = F,
+        constraint = "decrease",
+        degree = 1,
+        nknots = 20
+      )
     
     100*predict(monotonic_smoother, interval="none", z=axis_input*input$hosp_pl)[,2]
     
@@ -112,7 +134,7 @@ shinyServer(function(input, output) {
     })
   
   power_res = reactive({
-    invisible(input$run_sims)
+    #invisible(input$run_sims)
     drug_population() %>%
       rowwise() %>%
       mutate(
