@@ -174,3 +174,17 @@ trials_efficacy_time = function(n_drugs, drug_pwr_dat, duration_dat,
   })
 }
 
+
+get_surv_quantile = function(sfit){
+  res = quantile(sfit, c(0.5, 0.8, 0.9))$quantile 
+  res %>%
+    as_tibble(rownames = "n drugs") %>%
+    gather("Pct", "Months", -`n drugs`) %>%
+    mutate(
+      `n drugs` = factor(parse_number(`n drugs`),
+                         levels = c(5, 10, 25),
+                         labels = c("5", "15", "25")),
+      Months = round(Months, 1)
+      ) %>%
+    arrange(`n drugs`)
+}

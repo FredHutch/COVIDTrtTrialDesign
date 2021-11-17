@@ -13,7 +13,7 @@ source("trials_funs.R")
 
 
 lab_primary = "Trt two-week hospitalization probability  (primary)"
-lab_surrogate = "Median symptom resolution day (surrogate)"
+lab_surrogate = "Trt median symptom resolution day (surrogate)"
 
 lab_eps = "Proportion reduction median symptom duration (surrogate)"
 lab_hr = "Trt vs. placebo symptom resolution rate hazard ratio (HR)"
@@ -246,7 +246,7 @@ shinyServer(function(input, output) {
       scale_x_continuous(breaks = c(5, 1:10 * 100), limits = c(5, NA)) +
       coord_cartesian(ylim = c(0, 12)) +
       scale_shape_manual("", breaks = c(" ", "Selected settings"), values = c(NA,15)) +
-      labs(x = "Primary N per group", y = "Successful seq. trial duration (months)",
+      labs(x = "Primary N per group", y = "Sequential trial duration (months)",
            colour = "Surrogate N per group", fill = "") +
       theme(text = element_text(size = text_size - 2), panel.grid.minor.y = element_blank()) 
     
@@ -279,21 +279,29 @@ shinyServer(function(input, output) {
       
   })
   
-  output$survplot = renderPlot({
-    plot_stem = "Cum. incidence >="
-    
-    trial_sim_long = seq_trial_sims() %>%
+  surv_res = reactive({
+    seq_trial_sims() %>%
       gather(threshold, months, time_1drug:time_3drug) %>%
       mutate(
         obs = if_else(months <= input$trial_cens_time, T, F),
         month_trunc = pmin(months, input$trial_cens_time)
-        )
+      ) %>% 
+      group_by(threshold) %>% 
+      nest() %>% 
+      mutate(
+        surv_fit = map(data, ~survfit(Surv(month_trunc, obs) ~ n_drugs, data = .)),
+        surv_quant = map(surv_fit, get_surv_quantile)
+        ) %>%
+      ungroup()
+  })
+
+  output$survplot = renderPlot({
+    plot_stem = "Cum. incidence >="
     
-    surv_plots = map(unique(trial_sim_long$threshold), function(i){
-      tmp = filter(trial_sim_long, threshold == i)
-      fit <- survfit(Surv(month_trunc, obs) ~ n_drugs, data = tmp)
-      pl = ggsurvplot(fit, tmp, fun = "event", conf.int = F,
-                      ylab = paste0(plot_stem, parse_number(i), " drug"),
+    surv_plots = map(1:3, function(i){
+
+      pl = ggsurvplot(surv_res()$surv_fit[[i]], surv_res()$data[[i]], fun = "event", conf.int = F,
+                      ylab = paste0(plot_stem, parse_number(surv_res()$threshold[[i]]), " drug"),
                       break.time.by = 2, 
                       break.y.by = 0.2, ylim = c(0,1),
                       palette = "jco", pval = F) 
@@ -308,5 +316,18 @@ shinyServer(function(input, output) {
     
     
   })
-  
+  output$table <- renderTable({
+    surv_res() %>%
+      mutate(outcome = paste("Mos. to", parse_number(threshold), "drug(s)")) %>%
+      dplyr::select(outcome, surv_quant) %>%
+      unnest(cols = surv_quant) %>%
+      pivot_wider(names_from = outcome, values_from = "Months") %>%
+      rowid_to_column("tmp") %>% # manually collapsing rows
+      mutate(
+        `n drugs` = as.character(`n drugs`),
+        `n drugs` = if_else(tmp %in% c(1,4,7), `n drugs`, "")
+        ) %>%
+      dplyr::select(-tmp)
+    },digits = 1, striped = T
+    )
 })

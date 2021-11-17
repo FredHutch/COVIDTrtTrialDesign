@@ -24,7 +24,7 @@ shinyUI(fluidPage(
                                                           "Fold-reduction in median symptom duration (range, trt/drug).", 
                                                           min = 1, max = 1/0.1, step = 0.25, value = c(1, 5))),
                                    column(10, uiOutput("hvar_slider")),
-                                   column(10, numericInput("rho_eff", "Treatment effect correlation between duration and hospitalization", 
+                                   column(10, numericInput("rho_eff", "Treatment effect correlation between symptom duration and hospitalization", 
                                                            min = 0, max = 1, value = 0.6, step = .05))
                ))
                ),
@@ -94,7 +94,12 @@ shinyUI(fluidPage(
                           column(10, numericInput("trial_reps", "Trial simulations", min = 100, max = 5000, value = 250, step = 100))
                         ))
              ), 
-             mainPanel(plotOutput("survplot", height = "600", width = "600"))
+             mainPanel(
+               tabsetPanel(
+                 tabPanel("Cumulative incidence curves", plotOutput("survplot", height = "600", width = "500")),
+                 tabPanel("Summary", tableOutput("table"))
+               )
+             )
              )
   ),
   tabPanel("About", 
