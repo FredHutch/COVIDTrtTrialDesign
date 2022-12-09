@@ -1,19 +1,34 @@
-
 before_script:
-  - curl -LO https://releases.rancher.com/cli/v0.6.2/rancher-linux-amd64-v0.6.2.tar.gz
-  - tar zxf rancher-linux-amd64-v0.6.2.tar.gz
-  
-build_test:
+  - sed -i.bak 's/dl-cdn.alpinelinux.org/mirrors.edge.kernel.org/g' /etc/apk/repositories
+  - apk update
+  - apk --no-cache add py3-pip python3 curl
+  - pip3 install pyyaml
+  - curl -O https://raw.githubusercontent.com/FredHutch/swarm-build-helper/main/build_helper.py 
+  # below is from https://stackoverflow.com/a/65810302/470769
+  - mkdir -p $HOME/.docker
+  - echo $DOCKER_AUTH_CONFIG > $HOME/.docker/config.json
+  - set -x
+
+stages:
+  - build
+  - test
+  - deploy
+
+
+build:
+  stage: build
   script:
-    - docker build -t dockerimages.fhcrc.org/covidtrttrialdesign:latest .
-    - |
-        if docker ps -a|tr -s ' '|rev|cut -d ' ' -f 1|rev|grep -q covidtrttrialdesign
-        then
-        docker stop covidtrttrialdesign && docker rm --force covidtrttrialdesign
-        fi
-    - docker run -d --name covidtrttrialdesign -p 7777:7777 dockerimages.fhcrc.org/covidtrttrialdesign:latest
-    - sleep 15 && curl -sI  http://localhost:7777  |head -1|grep -q "200 OK"
-    - docker stop covidtrttrialdesign && docker rm --force covidtrttrialdesign
+    - docker build -t sc-registry.fredhutch.org/covidtrttrialdesign:test .
+    - docker push sc-registry.fredhutch.org/covidtrttrialdesign:test
+
+
+test:
+  stage: test
+  services: 
+    - name: sc-registry.fredhutch.org/covidtrttrialdesign:test
+      alias: covidtrttrialdesign
+    script:
+      - sleep 15 && curl -sI  http://covidtrttrialdesign:7777  |head -1|grep -q "200 OK"
   
   
 deploy:
@@ -22,8 +37,10 @@ deploy:
     refs:
        - main
   script:
-    - docker login --username $DOCKERIMAGES_USER --password $DOCKERIMAGES_PASS https://dockerimages.fhcrc.org
-    - docker push dockerimages.fhcrc.org/covidtrttrialdesign:latest
+    - docker tag sc-registry.fredhutch.org/covidtrttrialdesign:test sc-registry.fredhutch.org/covidtrttrialdesign:latest
+    - docker push sc-registry.fredhutch.org/covidtrttrialdesign:latest
     - sleep 15
-    - rancher-v0.6.2/rancher --url https://ponderosa.fhcrc.org --access-key $RANCHERAPI_KEY --secret-key $RANCHERAPI_SECRET up -d --pull --force-upgrade --confirm-upgrade --stack covidtrttrialdesign --file docker-compose.yml --rancher-file rancher-compose.yml
+    - echo $SC_SWARM_CICD_SSH_KEY | base64 -d > ./sc_swarm_cicd_ssh_key
+    - chmod 0400 ./sc_swarm_cicd_ssh_key
+    - python3 build_helper.py docker-compose.yml | ssh -i ./sc_swarm_cicd_ssh_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@sc-swarm-mgr.fhcrc.org docker stack deploy --with-registry-auth -c - covidtrttrialdesign
   
